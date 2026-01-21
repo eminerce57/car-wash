@@ -7,31 +7,34 @@ public class CarSpawner : MonoBehaviour
 {
     [Header("Spawn Ayarları")]
     public GameObject[] carPrefabs;  // Araba prefab'ları (sedan, suv, vb.)
-    public float spawnInterval = 2f; // Kaç saniyede bir spawn
+    public float minSpawnInterval = 0.8f; // Minimum spawn aralığı
+    public float maxSpawnInterval = 2f;   // Maximum spawn aralığı
     public Transform spawnPoint;     // Spawn noktası (boş bırakırsan spawner pozisyonu kullanılır)
     
     [Header("Hareket Ayarları")]
-    public float minSpeed = 3f;
-    public float maxSpeed = 7f;
-    public Vector3 moveDirection = Vector3.forward;
-    public float destroyDistance = 50f;
+    public float minSpeed = 0.3f;   // Yavaş araçlar
+    public float maxSpeed = 0.8f;   // Hızlı araçlar
+    public Vector3 moveDirection = Vector3.right; // X yönünde hareket
+    public float destroyDistance = 100f; // Yol bitene kadar
+    
+    [Header("Boyut Ayarları")]
+    public float carScale = 0.5f; // Araç boyutu (1 = normal, 0.5 = yarı boyut)
     
     [Header("Renk Ayarları")]
     public Color[] carColors = new Color[]
     {
-        Color.red,
-        Color.blue,
-        Color.green,
-        Color.yellow,
-        Color.white,
-        Color.black,
-        new Color(1f, 0.5f, 0f),    // Turuncu
-        new Color(0.5f, 0f, 0.5f),  // Mor
-        new Color(0f, 1f, 1f),      // Cyan
-        new Color(1f, 0.75f, 0.8f)  // Pembe
+        new Color(0.1f, 0.1f, 0.1f),     // Siyah
+        new Color(0.95f, 0.95f, 0.95f),  // Beyaz
+        new Color(0.6f, 0.6f, 0.65f),    // Gümüş Gri
+        new Color(0.25f, 0.25f, 0.28f),  // Koyu Gri (Antrasit)
+        new Color(0.7f, 0.05f, 0.1f),    // Kırmızı
+        new Color(0.1f, 0.2f, 0.4f),     // Lacivert
+        new Color(0.4f, 0.1f, 0.1f),     // Bordo
+        new Color(0.85f, 0.85f, 0.8f),   // Bej / Krem
     };
     
     private float timer = 0f;
+    private float currentSpawnInterval;
 
     private void Start()
     {
@@ -41,6 +44,9 @@ public class CarSpawner : MonoBehaviour
             spawnPoint = transform;
         }
         
+        // İlk spawn aralığını belirle
+        currentSpawnInterval = Random.Range(minSpawnInterval, maxSpawnInterval);
+        
         // Hemen bir araba spawn et
         SpawnCar();
     }
@@ -49,10 +55,12 @@ public class CarSpawner : MonoBehaviour
     {
         timer += Time.deltaTime;
         
-        if (timer >= spawnInterval)
+        if (timer >= currentSpawnInterval)
         {
             SpawnCar();
             timer = 0f;
+            // Yeni rastgele spawn aralığı (doğal trafik için)
+            currentSpawnInterval = Random.Range(minSpawnInterval, maxSpawnInterval);
         }
     }
 
@@ -71,8 +79,14 @@ public class CarSpawner : MonoBehaviour
         
         if (carPrefab == null) return;
         
-        // Arabayı spawn et
-        GameObject newCar = Instantiate(carPrefab, spawnPoint.position, spawnPoint.rotation);
+        // Hareket yönüne göre rotasyon hesapla
+        Quaternion rotation = Quaternion.LookRotation(moveDirection, Vector3.up);
+        
+        // Arabayı spawn et (hareket yönüne bakacak şekilde)
+        GameObject newCar = Instantiate(carPrefab, spawnPoint.position, rotation);
+        
+        // Boyutu ayarla
+        newCar.transform.localScale = Vector3.one * carScale;
         
         // CarMover ekle ve ayarla
         CarMover mover = newCar.AddComponent<CarMover>();
@@ -93,23 +107,50 @@ public class CarSpawner : MonoBehaviour
         // Rastgele renk seç
         Color randomColor = carColors[Random.Range(0, carColors.Length)];
         
-        // Arabanın tüm renderer'larını bul ve rengi uygula
+        // Sabit renkler
+        Color tireColor = new Color(0.15f, 0.15f, 0.15f);  // Koyu gri (lastik)
+        Color glassColor = new Color(0.1f, 0.1f, 0.12f);   // Koyu cam rengi
+        Color metalColor = new Color(0.7f, 0.7f, 0.7f);    // Metal/krom
+        
+        // Arabanın tüm renderer'larını bul
         Renderer[] renderers = car.GetComponentsInChildren<Renderer>();
         
         foreach (Renderer renderer in renderers)
         {
-            // Her material için renk ayarla
+            string objName = renderer.gameObject.name.ToLower();
+            
             foreach (Material mat in renderer.materials)
             {
-                // Ana rengi değiştir
+                string matName = mat.name.ToLower();
+                
+                // Hangi rengi uygulayacağımıza karar ver
+                Color colorToApply;
+                
+                // Lastik kontrolü (wheel içeren her şey)
+                if (objName.Contains("wheel") || matName.Contains("wheel") ||
+                    objName.Contains("tire") || matName.Contains("tire"))
+                {
+                    colorToApply = tireColor;
+                }
+                // Body = kaporta rengi
+                else if (objName.Contains("body") || matName.Contains("body"))
+                {
+                    colorToApply = randomColor;
+                }
+                // Diğer her şey koyu gri (detaylar, aksesuarlar)
+                else
+                {
+                    colorToApply = metalColor;
+                }
+                
+                // Rengi uygula
                 if (mat.HasProperty("_Color"))
                 {
-                    mat.color = randomColor;
+                    mat.color = colorToApply;
                 }
-                // URP için BaseColor
                 if (mat.HasProperty("_BaseColor"))
                 {
-                    mat.SetColor("_BaseColor", randomColor);
+                    mat.SetColor("_BaseColor", colorToApply);
                 }
             }
         }
