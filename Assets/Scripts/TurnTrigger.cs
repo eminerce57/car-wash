@@ -25,7 +25,7 @@ public class TurnTrigger : MonoBehaviour
         if (col == null)
         {
             BoxCollider box = gameObject.AddComponent<BoxCollider>();
-            box.size = new Vector3(3f, 2f, 1f);
+            box.size = new Vector3(1f, 1f, 1f); // Küçük kare kutu
             box.isTrigger = true;
         }
         else
@@ -59,7 +59,7 @@ public class TurnTrigger : MonoBehaviour
         {
             // Dön!
             car.TurnToDirection(newDirection, garagePoint, stopDistance);
-            Debug.Log($"Araç yan yola saptı!");
+            Debug.Log($"Araç yan yola saptı! qwe");
         }
         else
         {
@@ -71,7 +71,7 @@ public class TurnTrigger : MonoBehaviour
     private void OnDrawGizmos()
     {
         Gizmos.color = gizmoColor;
-        Gizmos.DrawWireCube(transform.position, new Vector3(3f, 2f, 1f));
+        Gizmos.DrawWireCube(transform.position, new Vector3(1f, 1f, 1f)); // Küçük kare
         
         // Dönüş yönünü göster
         Gizmos.color = Color.green;

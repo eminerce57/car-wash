@@ -27,7 +27,7 @@ public class CarMover : MonoBehaviour
     public float garageStopDistance = 2f;   // Garaja bu kadar yaklaşınca dur
     
     [Header("Dönüş Ayarları")]
-    public float turnSpeed = 2f;            // Dönüş hızı (ne kadar yüksek o kadar hızlı döner)
+    public float turnSpeed = 8f;            // Dönüş hızı (ne kadar yüksek o kadar hızlı döner)
     public bool isTurning = false;          // Şu an dönüyor mu?
     private Vector3 targetDirection;        // Hedef yön
     
@@ -40,7 +40,6 @@ public class CarMover : MonoBehaviour
     private void Start()
     {
         startPosition = transform.position;
-        originalSpeed = speed;
         
         // Collider ekle (yoksa)
         myCollider = GetComponent<BoxCollider>();
@@ -72,15 +71,6 @@ public class CarMover : MonoBehaviour
         {
             // Şimdilik 2 saniye bekleyip yok ol
             Destroy(gameObject, 2f);
-            return;
-        }
-        
-        // Dönüş yapılıyorsa yumuşak dönüş uygula
-        if (isTurning)
-        {
-            SmoothTurn();
-            // Dönüş sırasında tam hızda git, kontrol yapma
-            transform.Translate(moveDirection * originalSpeed * Time.deltaTime, Space.World);
             return;
         }
         
@@ -134,7 +124,7 @@ public class CarMover : MonoBehaviour
     }
     
     /// <summary>
-    /// Garaja doğru hareket et
+    /// Garaja doğru hareket et - HIZ DEĞİŞMEZ!
     /// </summary>
     private void MoveToGarage()
     {
@@ -151,36 +141,31 @@ public class CarMover : MonoBehaviour
             return;
         }
         
-        // Garaja doğru hareket et
+        // Garaja doğru yön hesapla
         Vector3 direction = (garageTarget.position - transform.position).normalized;
-        direction.y = 0; // Y ekseninde hareket etme
+        direction.y = 0;
         
-        // Yönü güncelle ve hareket et
-        moveDirection = direction;
-        transform.Translate(moveDirection * speed * Time.deltaTime, Space.World);
-        
-        // Aracı hareket yönüne döndür
+        // Aracı hızlıca garaja doğru döndür
         if (direction != Vector3.zero)
         {
             Quaternion targetRotation = Quaternion.LookRotation(direction);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * 5f);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, 500f * Time.deltaTime);
         }
+        
+        // İLERİ GİT - transform.forward yönünde
+        // Garaja giderken normal yoldaki hızla aynı git
+        float garageSpeed = Mathf.Max(originalSpeed, 2f); // Minimum 2 hız
+        transform.position += transform.forward * garageSpeed * Time.deltaTime;
     }
     
     /// <summary>
-    /// Yön değiştir ve garaja git (yumuşak dönüş)
+    /// Garaja git - hız aynı kalır!
     /// </summary>
     public void TurnToDirection(Vector3 newDirection, Transform garage, float stopDistance)
     {
         hasTurned = true;
         
-        // Yumuşak dönüşü başlat (ani değil!)
-        targetDirection = newDirection.normalized;
-        isTurning = true;
-        
-        // Hız aynı kalsın - duraksama olmasın!
-        
-        // Garaj hedefi varsa
+        // Garaj hedefi varsa direkt garaja git
         if (garage != null)
         {
             goingToGarage = true;

@@ -90,7 +90,9 @@ public class CarSpawner : MonoBehaviour
         
         // CarMover ekle ve ayarla
         CarMover mover = newCar.AddComponent<CarMover>();
-        mover.speed = Random.Range(minSpeed, maxSpeed);
+        float carSpeed = Random.Range(minSpeed, maxSpeed);
+        mover.speed = carSpeed;
+        mover.originalSpeed = carSpeed;  // Orijinal hızı da kaydet!
         mover.moveDirection = moveDirection;
         mover.destroyAfterDistance = destroyDistance;
         
