@@ -20,13 +20,13 @@ public class TurnTrigger : MonoBehaviour
 
     private void Start()
     {
-        // Collider kontrolü
+        // Collider kontrolü - çok küçük nokta
         Collider col = GetComponent<Collider>();
         if (col == null)
         {
-            BoxCollider box = gameObject.AddComponent<BoxCollider>();
-            box.size = new Vector3(1f, 1f, 1f); // Küçük kare kutu
-            box.isTrigger = true;
+            SphereCollider sphere = gameObject.AddComponent<SphereCollider>();
+            sphere.radius = 0.3f; // Küçük nokta
+            sphere.isTrigger = true;
         }
         else
         {
@@ -52,6 +52,13 @@ public class TurnTrigger : MonoBehaviour
         // Zaten dönmüş mü?
         if (car.hasTurned) return;
         
+        // Kuyruk dolu mu kontrol et
+        if (CarWashStation.Instance != null && CarWashStation.Instance.IsQueueFull())
+        {
+            Debug.Log("Kuyruk dolu! Araç düz devam ediyor.");
+            return; // Dönme, düz devam et
+        }
+        
         // Rastgele karar ver
         float random = Random.Range(0f, 1f);
         
@@ -59,7 +66,7 @@ public class TurnTrigger : MonoBehaviour
         {
             // Dön!
             car.TurnToDirection(newDirection, garagePoint, stopDistance);
-            Debug.Log($"Araç yan yola saptı! qwe");
+            Debug.Log($"Araç yan yola saptı!");
         }
         else
         {
@@ -71,7 +78,7 @@ public class TurnTrigger : MonoBehaviour
     private void OnDrawGizmos()
     {
         Gizmos.color = gizmoColor;
-        Gizmos.DrawWireCube(transform.position, new Vector3(1f, 1f, 1f)); // Küçük kare
+        Gizmos.DrawWireSphere(transform.position, 0.3f); // Küçük nokta
         
         // Dönüş yönünü göster
         Gizmos.color = Color.green;

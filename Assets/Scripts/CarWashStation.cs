@@ -1,215 +1,142 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
-/// Araba Yıkama İstasyonu
-/// Araç gelince yıkama yapar ve para kazandırır
+/// Araba Yıkama İstasyonu - Basit ve Temiz
 /// </summary>
 public class CarWashStation : MonoBehaviour
 {
-    [Header("Yıkama Ayarları")]
-    public float washDuration = 3f;         // Yıkama süresi (saniye)
-    public float moneyPerWash = 50f;        // Yıkama başına kazanç
+    public static CarWashStation Instance { get; private set; }
     
-    [Header("Pozisyonlar")]
-    public Transform washPoint;              // Aracın yıkanacağı nokta
-    public Transform exitPoint;              // Aracın çıkacağı nokta
-    public float exitSpeed = 3f;             // Çıkış hızı
+    [Header("Yıkama Ayarları")]
+    public float washDuration = 3f;
+    public float moneyPerWash = 50f;
+    
+    [Header("Kuyruk Ayarları")]
+    public int maxQueueSize = 3;
     
     [Header("Durum")]
-    public bool isOccupied = false;          // İstasyon dolu mu?
-    public bool isWashing = false;           // Yıkama yapılıyor mu?
-    public float washProgress = 0f;          // Yıkama ilerlemesi (0-1)
+    public bool isWashing = false;
+    public float washProgress = 0f;
     
     [Header("İstatistikler")]
-    public int totalCarsWashed = 0;          // Toplam yıkanan araç
-    public float totalEarnings = 0f;         // Toplam kazanç
+    public int totalCarsWashed = 0;
+    public float totalEarnings = 0f;
     
-    [Header("Görsel (Opsiyonel)")]
-    public GameObject washEffectPrefab;      // Su/köpük efekti
-    public Transform effectSpawnPoint;       // Efekt spawn noktası
+    [Header("UI")]
+    public WashProgressUI progressUI;  // Progress bar referansı
     
-    private GameObject currentCar;
-    private GameObject currentEffect;
+    // Kuyruk
+    private Queue<CarMover> carQueue = new Queue<CarMover>();
+    private CarMover currentCar;
+    
+    public int QueueCount => carQueue.Count;
+    public bool CanAcceptCar => carQueue.Count < maxQueueSize && !isWashing || carQueue.Count < maxQueueSize;
 
-    private void Start()
+    private void Awake()
     {
-        // Wash point yoksa kendi pozisyonunu kullan
-        if (washPoint == null)
-        {
-            washPoint = transform;
-        }
+        if (Instance == null) Instance = this;
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        // Zaten dolu mu?
-        if (isOccupied) return;
-        
-        // Araç mı?
         CarMover car = other.GetComponent<CarMover>();
         if (car == null) return;
-        
-        // Garaja gelen araç mı?
         if (!car.goingToGarage) return;
         
-        // Arabayı al
-        StartWash(other.gameObject, car);
-    }
-
-    /// <summary>
-    /// Yıkama işlemini başlat
-    /// </summary>
-    private void StartWash(GameObject car, CarMover carMover)
-    {
-        isOccupied = true;
-        currentCar = car;
-        
-        // Aracı durdur
-        carMover.enabled = false;
-        
-        // Aracı yıkama noktasına taşı
-        car.transform.position = washPoint.position;
-        
-        // Yıkama başlat
-        StartCoroutine(WashProcess());
-    }
-
-    /// <summary>
-    /// Yıkama işlemi
-    /// </summary>
-    private IEnumerator WashProcess()
-    {
-        isWashing = true;
-        washProgress = 0f;
-        
-        Debug.Log("Yıkama başladı!");
-        
-        // Efekt spawn et
-        SpawnWashEffect();
-        
-        // Yıkama süresi boyunca bekle
-        float elapsed = 0f;
-        while (elapsed < washDuration)
+        // Kuyruğa ekle
+        if (!carQueue.Contains(car) && carQueue.Count < maxQueueSize)
         {
-            elapsed += Time.deltaTime;
-            washProgress = elapsed / washDuration;
-            yield return null;
-        }
-        
-        washProgress = 1f;
-        isWashing = false;
-        
-        // Para kazan
-        EarnMoney();
-        
-        // Efekti kaldır
-        StopWashEffect();
-        
-        Debug.Log("Yıkama tamamlandı! Para kazanıldı: $" + moneyPerWash);
-        
-        // Aracı çıkışa gönder
-        StartCoroutine(ExitCar());
-    }
-
-    /// <summary>
-    /// Para kazan
-    /// </summary>
-    private void EarnMoney()
-    {
-        totalCarsWashed++;
-        totalEarnings += moneyPerWash;
-        
-        // GameManager veya EconomyManager varsa ona da bildir
-        // EconomyManager.Instance?.AddMoney(moneyPerWash);
-    }
-
-    /// <summary>
-    /// Aracı çıkışa gönder
-    /// </summary>
-    private IEnumerator ExitCar()
-    {
-        if (currentCar == null)
-        {
-            isOccupied = false;
-            yield break;
-        }
-        
-        // Çıkış noktası
-        Vector3 exitPos = exitPoint != null ? exitPoint.position : transform.position + transform.forward * 10f;
-        
-        // Aracı çıkışa doğru hareket ettir
-        while (currentCar != null && Vector3.Distance(currentCar.transform.position, exitPos) > 1f)
-        {
-            Vector3 direction = (exitPos - currentCar.transform.position).normalized;
-            currentCar.transform.position += direction * exitSpeed * Time.deltaTime;
+            car.StopCar();
+            carQueue.Enqueue(car);
+            Debug.Log($"Araç kuyruğa eklendi! Kuyruk: {carQueue.Count}");
             
-            // Aracı çıkış yönüne döndür
-            if (direction != Vector3.zero)
+            // Yıkama yapmıyorsak başlat
+            if (!isWashing)
             {
-                Quaternion targetRot = Quaternion.LookRotation(direction);
-                currentCar.transform.rotation = Quaternion.Slerp(
-                    currentCar.transform.rotation, 
-                    targetRot, 
-                    Time.deltaTime * 5f
-                );
+                StartCoroutine(ProcessQueue());
+            }
+        }
+    }
+
+    private IEnumerator ProcessQueue()
+    {
+        while (carQueue.Count > 0)
+        {
+            // Sıradaki aracı al
+            currentCar = carQueue.Dequeue();
+            
+            if (currentCar == null)
+            {
+                continue;
             }
             
-            yield return null;
+            // Yıkama başlat
+            isWashing = true;
+            washProgress = 0f;
+            Debug.Log("Yıkama başladı!");
+            
+            // Progress UI göster
+            if (progressUI != null) progressUI.Show();
+            
+            // Yıkama süresi
+            float elapsed = 0f;
+            while (elapsed < washDuration)
+            {
+                elapsed += Time.deltaTime;
+                washProgress = elapsed / washDuration;
+                
+                // UI güncelle
+                if (progressUI != null)
+                {
+                    progressUI.SetProgress(washProgress);
+                    progressUI.SetTimer(washDuration - elapsed);
+                }
+                
+                yield return null;
+            }
+            
+            // Yıkama tamamlandı
+            washProgress = 1f;
+            
+            // Progress UI gizle
+            if (progressUI != null) progressUI.Hide();
+            totalCarsWashed++;
+            totalEarnings += moneyPerWash;
+            
+            // Para ekle
+            if (MoneyManager.Instance != null)
+            {
+                MoneyManager.Instance.AddMoney(moneyPerWash);
+            }
+            
+            Debug.Log($"Yıkama tamamlandı! +${moneyPerWash}");
+            
+            // Aracı yok et
+            if (currentCar != null)
+            {
+                Destroy(currentCar.gameObject);
+            }
+            
+            isWashing = false;
+            
+            // Biraz bekle (sonraki araç için)
+            yield return new WaitForSeconds(0.5f);
         }
-        
-        // Aracı yok et
-        if (currentCar != null)
-        {
-            Destroy(currentCar);
-        }
-        
-        currentCar = null;
-        isOccupied = false;
-        
-        Debug.Log("Araç çıktı! İstasyon boş.");
     }
 
     /// <summary>
-    /// Yıkama efekti spawn et
+    /// Kuyruk dolu mu?
     /// </summary>
-    private void SpawnWashEffect()
+    public bool IsQueueFull()
     {
-        if (washEffectPrefab == null) return;
-        
-        Vector3 spawnPos = effectSpawnPoint != null ? effectSpawnPoint.position : washPoint.position;
-        currentEffect = Instantiate(washEffectPrefab, spawnPos, Quaternion.identity);
+        return carQueue.Count >= maxQueueSize;
     }
 
-    /// <summary>
-    /// Yıkama efektini durdur
-    /// </summary>
-    private void StopWashEffect()
-    {
-        if (currentEffect != null)
-        {
-            Destroy(currentEffect);
-        }
-    }
-
-    // Editörde göster
     private void OnDrawGizmos()
     {
-        // Yıkama noktası
-        Gizmos.color = Color.blue;
-        Vector3 washPos = washPoint != null ? washPoint.position : transform.position;
-        Gizmos.DrawWireSphere(washPos, 1f);
-        
-        // Çıkış noktası
-        if (exitPoint != null)
-        {
-            Gizmos.color = Color.green;
-            Gizmos.DrawWireSphere(exitPoint.position, 0.5f);
-            Gizmos.DrawLine(washPos, exitPoint.position);
-        }
-        
-        // Trigger alanı
-        Gizmos.color = isOccupied ? Color.red : Color.cyan;
+        Gizmos.color = isWashing ? Color.red : Color.green;
         Gizmos.DrawWireCube(transform.position, new Vector3(3f, 2f, 3f));
     }
 }
