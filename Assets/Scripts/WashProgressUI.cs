@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// Yıkama ilerleme göstergesi - Dairesel Progress Bar
@@ -8,9 +9,9 @@ using UnityEngine.UI;
 public class WashProgressUI : MonoBehaviour
 {
     [Header("UI Elemanları")]
-    public Image fillImage;          // Dolan daire (Fill)
-    public Image backgroundImage;    // Arka plan daire
-    public Text timerText;           // Kalan süre yazısı (opsiyonel)
+    public Image fillImage;              // Dolan daire (Fill)
+    public Image backgroundImage;        // Arka plan daire
+    public TextMeshProUGUI timerText;    // Kalan süre yazısı (TextMeshPro)
     
     [Header("Renkler")]
     public Color fillColor = new Color(0.2f, 0.8f, 0.2f);      // Yeşil

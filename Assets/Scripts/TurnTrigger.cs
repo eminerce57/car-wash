@@ -12,8 +12,13 @@ public class TurnTrigger : MonoBehaviour
     public Vector3 newDirection = Vector3.forward;  // Yeni hareket yönü (Z yönü = ileri)
     
     [Header("Garaj Noktası")]
+    public Transform alignPoint;   // Dönüş hizalama noktası (yolun ortası)
     public Transform garagePoint;  // Garajın önü (opsiyonel)
     public float stopDistance = 2f; // Garaja bu kadar yaklaşınca dur
+    
+    [Header("Çakışma Önleme")]
+    private float lastTurnTime = -999f;
+    public float turnCooldown = 0.5f;  // İki araç arası minimum süre
     
     [Header("Görsel")]
     public Color gizmoColor = Color.yellow;
@@ -59,13 +64,22 @@ public class TurnTrigger : MonoBehaviour
             return; // Dönme, düz devam et
         }
         
+        // Çakışma önleme - son dönüşten beri yeterli süre geçti mi?
+        if (Time.time - lastTurnTime < turnCooldown)
+        {
+            Debug.Log("Başka araç döndü, bu araç bekleyecek.");
+            return; // Düz devam et
+        }
+        
         // Rastgele karar ver
         float random = Random.Range(0f, 1f);
         
         if (random <= turnChance)
         {
-            // Dön!
-            car.TurnToDirection(newDirection, garagePoint, stopDistance);
+            lastTurnTime = Time.time; // Cooldown başlat
+            
+            // Dön! Align point varsa onu da gönder
+            car.TurnToDirection(newDirection, alignPoint, garagePoint, stopDistance);
             Debug.Log($"Araç yan yola saptı!");
         }
         else
@@ -84,12 +98,23 @@ public class TurnTrigger : MonoBehaviour
         Gizmos.color = Color.green;
         Gizmos.DrawRay(transform.position, newDirection * 3f);
         
-        // Garaj noktasını göster
+        // Align point göster (mavi)
+        if (alignPoint != null)
+        {
+            Gizmos.color = Color.blue;
+            Gizmos.DrawWireSphere(alignPoint.position, 0.4f);
+            Gizmos.DrawLine(transform.position, alignPoint.position);
+        }
+        
+        // Garaj noktasını göster (kırmızı)
         if (garagePoint != null)
         {
             Gizmos.color = Color.red;
             Gizmos.DrawWireSphere(garagePoint.position, 0.5f);
-            Gizmos.DrawLine(transform.position, garagePoint.position);
+            if (alignPoint != null)
+                Gizmos.DrawLine(alignPoint.position, garagePoint.position);
+            else
+                Gizmos.DrawLine(transform.position, garagePoint.position);
         }
     }
 }

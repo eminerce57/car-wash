@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// Para Yöneticisi - Singleton
@@ -13,7 +13,7 @@ public class MoneyManager : MonoBehaviour
     public float currentMoney = 0f;
     
     [Header("UI")]
-    public Text moneyText;           // Para yazısı
+    public TextMeshProUGUI moneyText;  // TextMeshPro para yazısı
     
     [Header("Animasyon")]
     public float countSpeed = 100f;  // Para sayma hızı

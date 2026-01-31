@@ -15,19 +15,22 @@ public class CarMover : MonoBehaviour
     public float destroyAfterDistance = 50f;
     
     [Header("Çarpışma Algılama")]
-    public float detectionDistance = 3f;
-    public float safeDistance = 1.5f;
+    public float detectionDistance = 2f;    // Daha yakın algılama
+    public float safeDistance = 1f;         // Daha yakın mesafe (kuyrukta sıkı dur)
     
     [Header("Garaj/Dönüş")]
     public bool hasTurned = false;
     public bool goingToGarage = false;
-    public Transform garageTarget;
+    public Transform alignTarget;     // İlk hedef: Hizalama noktası
+    public Transform garageTarget;    // Son hedef: Garaj
     public float garageStopDistance = 2f;
+    public float alignDistance = 0.5f; // Hizalama noktasına bu kadar yaklaşınca geç
     
     private Vector3 startPosition;
     private float distanceTraveled = 0f;
     private bool isBlocked = false;
     private bool isAtGarage = false;
+    private bool alignReached = false; // Hizalama noktasına ulaştı mı?
     private BoxCollider myCollider;
 
     private void Start()
@@ -89,24 +92,48 @@ public class CarMover : MonoBehaviour
     
     private void MoveToGarage()
     {
-        if (garageTarget == null) return;
-        
         // Önünde araç var mı kontrol et
         CheckForCarAhead();
-        
-        float distance = Vector3.Distance(transform.position, garageTarget.position);
-        
-        if (distance <= garageStopDistance)
-        {
-            isAtGarage = true;
-            return;
-        }
         
         // Önü kapalıysa bekle
         if (isBlocked) return;
         
-        // Garaja doğru git
-        Vector3 direction = (garageTarget.position - transform.position).normalized;
+        Transform currentTarget;
+        float targetDistance;
+        
+        // Önce align noktasına git, sonra garaja
+        if (!alignReached && alignTarget != null)
+        {
+            currentTarget = alignTarget;
+            targetDistance = alignDistance;
+        }
+        else
+        {
+            currentTarget = garageTarget;
+            targetDistance = garageStopDistance;
+        }
+        
+        if (currentTarget == null) return;
+        
+        float distance = Vector3.Distance(transform.position, currentTarget.position);
+        
+        // Hedefe ulaştık mı?
+        if (distance <= targetDistance)
+        {
+            if (!alignReached && alignTarget != null)
+            {
+                alignReached = true; // Align noktasına ulaştık, garaja geç
+                return;
+            }
+            else
+            {
+                isAtGarage = true; // Garaja ulaştık
+                return;
+            }
+        }
+        
+        // Hedefe doğru git
+        Vector3 direction = (currentTarget.position - transform.position).normalized;
         direction.y = 0;
         
         if (direction != Vector3.zero)
@@ -119,15 +146,17 @@ public class CarMover : MonoBehaviour
         transform.position += transform.forward * garageSpeed * Time.deltaTime;
     }
     
-    public void TurnToDirection(Vector3 newDirection, Transform garage, float stopDistance)
+    public void TurnToDirection(Vector3 newDirection, Transform align, Transform garage, float stopDistance)
     {
         hasTurned = true;
         
         if (garage != null)
         {
             goingToGarage = true;
-            garageTarget = garage;
+            alignTarget = align;      // Önce buraya git (opsiyonel)
+            garageTarget = garage;    // Sonra buraya git
             garageStopDistance = stopDistance;
+            alignReached = (align == null); // Align yoksa direkt garaja git
         }
     }
     
@@ -155,6 +184,13 @@ public class CarMover : MonoBehaviour
             CarMover otherCar = hit.collider.GetComponent<CarMover>();
             if (otherCar != null)
             {
+                // ÖNEMLİ: Ana yoldaki araçlar, garaja giden araçları yoksaysın
+                // Bu sayede kuyruk yola taşsa bile ana yol trafiği durmaz
+                if (!goingToGarage && otherCar.goingToGarage)
+                {
+                    continue; // Bu aracı yoksay, diğerlerine bak
+                }
+                
                 float distance = hit.distance;
                 
                 if (distance < safeDistance)

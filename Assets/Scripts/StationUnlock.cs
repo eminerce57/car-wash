@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 /// <summary>
 /// İstasyon Kilidi - Para ile açılabilir
@@ -17,7 +18,7 @@ public class StationUnlock : MonoBehaviour
     
     [Header("UI")]
     public GameObject unlockButton;       // Satın al butonu
-    public Text priceText;                // Fiyat yazısı
+    public TextMeshProUGUI priceText;     // Fiyat yazısı (TextMeshPro)
     
     [Header("TurnTrigger")]
     public TurnTrigger turnTrigger;       // Bu istasyona yönlendiren trigger
@@ -68,6 +69,9 @@ public class StationUnlock : MonoBehaviour
     public void Unlock()
     {
         isUnlocked = true;
+        
+        // Unlock sesi çal
+        if (SoundManager.Instance != null) SoundManager.Instance.PlayUnlockSound();
         
         // TurnTrigger'ı aktif et
         if (turnTrigger != null)

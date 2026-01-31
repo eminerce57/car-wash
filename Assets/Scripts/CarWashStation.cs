@@ -14,7 +14,7 @@ public class CarWashStation : MonoBehaviour
     public float moneyPerWash = 50f;
     
     [Header("Kuyruk Ayarları")]
-    public int maxQueueSize = 3;
+    public int maxQueueSize = 2;  // Kuyruk yola taşmasın diye az tuttuk
     
     [Header("Durum")]
     public bool isWashing = false;
@@ -80,6 +80,9 @@ public class CarWashStation : MonoBehaviour
             // Progress UI göster
             if (progressUI != null) progressUI.Show();
             
+            // Yıkama sesi başlat
+            if (SoundManager.Instance != null) SoundManager.Instance.StartWashingSound();
+            
             // Yıkama süresi
             float elapsed = 0f;
             while (elapsed < washDuration)
@@ -100,16 +103,20 @@ public class CarWashStation : MonoBehaviour
             // Yıkama tamamlandı
             washProgress = 1f;
             
+            // Yıkama sesini durdur
+            if (SoundManager.Instance != null) SoundManager.Instance.StopWashingSound();
+            
             // Progress UI gizle
             if (progressUI != null) progressUI.Hide();
             totalCarsWashed++;
             totalEarnings += moneyPerWash;
             
-            // Para ekle
+            // Para ekle + ses çal
             if (MoneyManager.Instance != null)
             {
                 MoneyManager.Instance.AddMoney(moneyPerWash);
             }
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayCoinSound();
             
             Debug.Log($"Yıkama tamamlandı! +${moneyPerWash}");
             
