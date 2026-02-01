@@ -18,7 +18,10 @@ public class TurnTrigger : MonoBehaviour
     
     [Header("Çakışma Önleme")]
     private float lastTurnTime = -999f;
-    public float turnCooldown = 0.5f;  // İki araç arası minimum süre
+    public float turnCooldown = 2f;  // İki araç arası minimum süre
+    
+    // Garaja giden araç sayısını takip et
+    private static int carsGoingToGarage = 0;
     
     [Header("Görsel")]
     public Color gizmoColor = Color.yellow;
@@ -57,18 +60,35 @@ public class TurnTrigger : MonoBehaviour
         // Zaten dönmüş mü?
         if (car.hasTurned) return;
         
-        // Kuyruk dolu mu kontrol et
-        if (CarWashStation.Instance != null && CarWashStation.Instance.IsQueueFull())
+        // Zaten garaja gidiyor mu?
+        if (car.goingToGarage) return;
+        
+        // Toplam araç sayısı kontrolü (giden + bekleyen + yıkanan)
+        int maxAllowed = 4; // Maksimum 4 araç
+        if (CarWashStation.Instance != null)
         {
-            Debug.Log("Kuyruk dolu! Araç düz devam ediyor.");
-            return; // Dönme, düz devam et
+            maxAllowed = CarWashStation.Instance.maxQueueSize;
+        }
+        
+        int totalCars = carsGoingToGarage;
+        if (CarWashStation.Instance != null)
+        {
+            totalCars += CarWashStation.Instance.GetTotalWaitingCars();
+        }
+        
+        if (totalCars >= maxAllowed)
+        {
+            Debug.Log($"Maksimum araç sayısına ulaşıldı ({totalCars}/{maxAllowed})! Araç düz devam ediyor.");
+            car.hasTurned = true;
+            return;
         }
         
         // Çakışma önleme - son dönüşten beri yeterli süre geçti mi?
         if (Time.time - lastTurnTime < turnCooldown)
         {
             Debug.Log("Başka araç döndü, bu araç bekleyecek.");
-            return; // Düz devam et
+            car.hasTurned = true;
+            return;
         }
         
         // Rastgele karar ver
@@ -76,16 +96,26 @@ public class TurnTrigger : MonoBehaviour
         
         if (random <= turnChance)
         {
-            lastTurnTime = Time.time; // Cooldown başlat
+            lastTurnTime = Time.time;
+            carsGoingToGarage++; // Sayacı artır
             
-            // Dön! Align point varsa onu da gönder
+            // Dön!
             car.TurnToDirection(newDirection, alignPoint, garagePoint, stopDistance);
-            Debug.Log($"Araç yan yola saptı!");
+            Debug.Log($"Araç yan yola saptı! (Toplam: {carsGoingToGarage + (CarWashStation.Instance != null ? CarWashStation.Instance.GetTotalWaitingCars() : 0)})");
         }
         else
         {
+            car.hasTurned = true;
             Debug.Log($"Araç düz devam etti.");
         }
+    }
+    
+    /// <summary>
+    /// Araç garaja ulaştığında sayacı azalt (CarWashStation'dan çağrılır)
+    /// </summary>
+    public static void OnCarReachedGarage()
+    {
+        carsGoingToGarage = Mathf.Max(0, carsGoingToGarage - 1);
     }
 
     // Editörde göster

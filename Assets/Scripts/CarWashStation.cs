@@ -3,18 +3,33 @@ using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
-/// Araba Yıkama İstasyonu - Basit ve Temiz
+/// Araba Yıkama İstasyonu - Level Sistemi ile
 /// </summary>
 public class CarWashStation : MonoBehaviour
 {
     public static CarWashStation Instance { get; private set; }
     
-    [Header("Yıkama Ayarları")]
-    public float washDuration = 3f;
-    public float moneyPerWash = 50f;
+    [Header("Level Sistemi")]
+    public int currentLevel = 1;
+    public int maxLevel = 7;
+    
+    [Header("Temel Değerler (Level 1)")]
+    public float baseWashDuration = 10f;     // Başlangıç yıkama süresi (yavaş)
+    public float baseMoneyPerWash = 15f;     // Başlangıç kazanç (düşük)
+    public float baseUpgradeCost = 75f;      // Başlangıç upgrade maliyeti
+    
+    [Header("Level Başına Artış")]
+    public float durationReductionPerLevel = 1.2f;   // Her level'da süre azalması
+    public float moneyIncreasePerLevel = 12f;        // Her level'da kazanç artışı
+    public float upgradeCostMultiplier = 2f;         // Her level'da maliyet çarpanı
+    
+    [Header("Hesaplanan Değerler (Otomatik)")]
+    public float washDuration;
+    public float moneyPerWash;
+    public float nextUpgradeCost;
     
     [Header("Kuyruk Ayarları")]
-    public int maxQueueSize = 2;  // Kuyruk yola taşmasın diye az tuttuk
+    public int maxQueueSize = 4;  // Maksimum 4 araç bekleyebilir
     
     [Header("Durum")]
     public bool isWashing = false;
@@ -25,7 +40,8 @@ public class CarWashStation : MonoBehaviour
     public float totalEarnings = 0f;
     
     [Header("UI")]
-    public WashProgressUI progressUI;  // Progress bar referansı
+    public WashProgressUI progressUI;
+    public UpgradePanel upgradePanel;  // Upgrade paneli
     
     // Kuyruk
     private Queue<CarMover> carQueue = new Queue<CarMover>();
@@ -37,6 +53,75 @@ public class CarWashStation : MonoBehaviour
     private void Awake()
     {
         if (Instance == null) Instance = this;
+        CalculateStats();
+    }
+    
+    private void Update()
+    {
+        // Tıklama kontrolü
+        Update_CheckClick();
+    }
+    
+    /// <summary>
+    /// Level'a göre değerleri hesapla
+    /// </summary>
+    public void CalculateStats()
+    {
+        // Yıkama süresi (her level'da azalır, minimum 1 saniye)
+        washDuration = Mathf.Max(1f, baseWashDuration - (durationReductionPerLevel * (currentLevel - 1)));
+        
+        // Kazanç (her level'da artar)
+        moneyPerWash = baseMoneyPerWash + (moneyIncreasePerLevel * (currentLevel - 1));
+        
+        // Sonraki upgrade maliyeti
+        nextUpgradeCost = baseUpgradeCost * Mathf.Pow(upgradeCostMultiplier, currentLevel - 1);
+    }
+    
+    /// <summary>
+    /// Upgrade yap
+    /// </summary>
+    public bool TryUpgrade()
+    {
+        if (currentLevel >= maxLevel)
+        {
+            Debug.Log("Maksimum level'a ulaşıldı!");
+            return false;
+        }
+        
+        if (MoneyManager.Instance == null) return false;
+        
+        if (MoneyManager.Instance.SpendMoney(nextUpgradeCost))
+        {
+            currentLevel++;
+            CalculateStats();
+            
+            // Ses çal
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayUpgradeSound();
+            
+            Debug.Log($"Upgrade başarılı! Yeni Level: {currentLevel}");
+            return true;
+        }
+        
+        Debug.Log("Yetersiz bakiye!");
+        return false;
+    }
+    
+    /// <summary>
+    /// Upgrade yapılabilir mi?
+    /// </summary>
+    public bool CanUpgrade()
+    {
+        if (currentLevel >= maxLevel) return false;
+        if (MoneyManager.Instance == null) return false;
+        return MoneyManager.Instance.CanAfford(nextUpgradeCost);
+    }
+    
+    /// <summary>
+    /// Max level'a ulaşıldı mı?
+    /// </summary>
+    public bool IsMaxLevel()
+    {
+        return currentLevel >= maxLevel;
     }
 
     private void OnTriggerEnter(Collider other)
@@ -50,6 +135,10 @@ public class CarWashStation : MonoBehaviour
         {
             car.StopCar();
             carQueue.Enqueue(car);
+            
+            // Garaja giden araç sayısını azalt (artık kuyrukta)
+            TurnTrigger.OnCarReachedGarage();
+            
             Debug.Log($"Araç kuyruğa eklendi! Kuyruk: {carQueue.Count}");
             
             // Yıkama yapmıyorsak başlat
@@ -134,13 +223,67 @@ public class CarWashStation : MonoBehaviour
     }
 
     /// <summary>
-    /// Kuyruk dolu mu?
+    /// Kuyruk dolu mu? (yıkanan araç dahil)
     /// </summary>
     public bool IsQueueFull()
     {
-        return carQueue.Count >= maxQueueSize;
+        int totalCars = carQueue.Count;
+        if (isWashing) totalCars++; // Yıkanan araç da sayılsın
+        return totalCars >= maxQueueSize;
+    }
+    
+    /// <summary>
+    /// Toplam bekleyen araç sayısı
+    /// </summary>
+    public int GetTotalWaitingCars()
+    {
+        int total = carQueue.Count;
+        if (isWashing) total++;
+        return total;
     }
 
+    /// <summary>
+    /// Tıklama kontrolü
+    /// </summary>
+    private void Update_CheckClick()
+    {
+        // Sol tık kontrolü
+        if (UnityEngine.InputSystem.Mouse.current != null && 
+            UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            CheckClickOnStation();
+        }
+        // Touch kontrolü (mobil)
+        else if (UnityEngine.InputSystem.Touchscreen.current != null &&
+                 UnityEngine.InputSystem.Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+        {
+            CheckClickOnStation();
+        }
+    }
+    
+    private void CheckClickOnStation()
+    {
+        Ray ray = Camera.main.ScreenPointToRay(UnityEngine.InputSystem.Pointer.current.position.ReadValue());
+        RaycastHit hit;
+        
+        if (Physics.Raycast(ray, out hit, 100f))
+        {
+            // Bu objeye mi tıklandı?
+            if (hit.collider.gameObject == gameObject || hit.collider.transform.IsChildOf(transform))
+            {
+                if (upgradePanel != null)
+                {
+                    upgradePanel.Show(this);
+                    Debug.Log("Upgrade Panel açıldı!");
+                }
+                else
+                {
+                    Debug.Log("Upgrade Panel referansı boş!");
+                }
+            }
+        }
+    }
+    
     private void OnDrawGizmos()
     {
         Gizmos.color = isWashing ? Color.red : Color.green;
