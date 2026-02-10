@@ -33,6 +33,12 @@ public class CarSpawner : MonoBehaviour
         new Color(0.85f, 0.85f, 0.8f),   // Bej / Krem
     };
     
+    [Header("Altın Araç Ayarları")]
+    [Range(0f, 1f)]
+    public float goldenCarChance = 0.05f;    // %5 şans
+    public float goldenMinBonus = 100f;       // Minimum bonus
+    public float goldenMaxBonus = 300f;       // Maximum bonus
+    
     private float timer = 0f;
     private float currentSpawnInterval;
 
@@ -96,10 +102,22 @@ public class CarSpawner : MonoBehaviour
         mover.moveDirection = moveDirection;
         mover.destroyAfterDistance = destroyDistance;
         
-        // Rastgele renk uygula
-        ApplyRandomColor(newCar);
+        // Altın araç mı kontrol et
+        bool isGolden = Random.Range(0f, 1f) < goldenCarChance;
         
-        Debug.Log($"Araba spawn edildi: {carPrefab.name}");
+        if (isGolden)
+        {
+            // Altın araç!
+            float bonusMoney = Random.Range(goldenMinBonus, goldenMaxBonus);
+            mover.SetAsGolden(bonusMoney);
+            Debug.Log($"✨ ALTIN ARAÇ spawn edildi! Bonus: ${bonusMoney:F0}");
+        }
+        else
+        {
+            // Normal araç - rastgele renk uygula
+            ApplyRandomColor(newCar);
+            Debug.Log($"Araba spawn edildi: {carPrefab.name}");
+        }
     }
 
     private void ApplyRandomColor(GameObject car)

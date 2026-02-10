@@ -14,6 +14,16 @@ public class CarMover : MonoBehaviour
     [Header("Yok Olma")]
     public float destroyAfterDistance = 50f;
     
+    [Header("Altın Araç")]
+    public bool isGolden = false;           // Bu altın araç mı?
+    public float goldenBonusMoney = 100f;   // Tıklayınca kazanılacak para
+    private bool goldCollected = false;     // Zaten tıklandı mı?
+    private GameObject coinIcon;            // Dönen coin simgesi
+    public float coinRotationSpeed = 180f;  // Coin dönüş hızı (derece/saniye)
+    public float coinBobSpeed = 2f;         // Coin yukarı-aşağı hızı
+    public float coinBobAmount = 0.2f;      // Coin yukarı-aşağı mesafesi
+    private float coinStartY;               // Coin başlangıç Y pozisyonu
+    
     [Header("Çarpışma Algılama")]
     public float detectionDistance = 2f;    // Daha yakın algılama
     public float safeDistance = 1f;         // Daha yakın mesafe (kuyrukta sıkı dur)
@@ -66,6 +76,13 @@ public class CarMover : MonoBehaviour
             return; // Yıkamada bekliyor
         }
         
+        // Altın araç tıklama kontrolü ve coin animasyonu
+        if (isGolden && !goldCollected)
+        {
+            CheckGoldenCarClick();
+            AnimateCoinIcon();
+        }
+        
         // Garaja mı gidiyor?
         if (goingToGarage && garageTarget != null)
         {
@@ -88,6 +105,188 @@ public class CarMover : MonoBehaviour
         {
             Destroy(gameObject);
         }
+    }
+    
+    /// <summary>
+    /// Altın araca tıklama kontrolü
+    /// </summary>
+    private void CheckGoldenCarClick()
+    {
+        // Mouse tıklama
+        bool clicked = false;
+        Vector2 clickPosition = Vector2.zero;
+        
+        if (UnityEngine.InputSystem.Mouse.current != null && 
+            UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
+        {
+            clicked = true;
+            clickPosition = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
+        }
+        // Touch tıklama
+        else if (UnityEngine.InputSystem.Touchscreen.current != null &&
+                 UnityEngine.InputSystem.Touchscreen.current.primaryTouch.press.wasPressedThisFrame)
+        {
+            clicked = true;
+            clickPosition = UnityEngine.InputSystem.Touchscreen.current.primaryTouch.position.ReadValue();
+        }
+        
+        if (clicked)
+        {
+            Ray ray = Camera.main.ScreenPointToRay(clickPosition);
+            RaycastHit hit;
+            
+            if (Physics.Raycast(ray, out hit, 100f))
+            {
+                if (hit.collider.gameObject == gameObject)
+                {
+                    CollectGoldenBonus();
+                }
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Altın bonus topla
+    /// </summary>
+    private void CollectGoldenBonus()
+    {
+        if (goldCollected) return;
+        goldCollected = true;
+        
+        // Para ekle
+        if (MoneyManager.Instance != null)
+        {
+            MoneyManager.Instance.AddMoney(goldenBonusMoney);
+        }
+        
+        // Ses çal
+        if (SoundManager.Instance != null)
+        {
+            SoundManager.Instance.PlayCoinSound();
+        }
+        
+        Debug.Log($"ALTIN ARAÇ YAKALANDI! +${goldenBonusMoney}");
+        
+        // Efekt: Aracı normal renge çevir veya parıltı efekti
+        // Şimdilik aracı yok et
+        Destroy(gameObject, 0.3f);
+    }
+    
+    /// <summary>
+    /// Altın araç olarak ayarla
+    /// </summary>
+    public void SetAsGolden(float bonusMoney)
+    {
+        isGolden = true;
+        goldenBonusMoney = bonusMoney;
+        
+        // Altın renk uygula
+        ApplyGoldenColor();
+    }
+    
+    /// <summary>
+    /// Araca altın renk uygula
+    /// </summary>
+    private void ApplyGoldenColor()
+    {
+        Color goldColor = new Color(1f, 0.84f, 0f); // Altın sarısı
+        
+        Renderer[] renderers = GetComponentsInChildren<Renderer>();
+        foreach (Renderer renderer in renderers)
+        {
+            foreach (Material mat in renderer.materials)
+            {
+                if (mat.HasProperty("_Color"))
+                {
+                    mat.color = goldColor;
+                }
+                if (mat.HasProperty("_BaseColor"))
+                {
+                    mat.SetColor("_BaseColor", goldColor);
+                }
+                // Parlak yap
+                if (mat.HasProperty("_Metallic"))
+                {
+                    mat.SetFloat("_Metallic", 1f);
+                }
+                if (mat.HasProperty("_Smoothness"))
+                {
+                    mat.SetFloat("_Smoothness", 0.9f);
+                }
+            }
+        }
+        
+        // Coin simgesi oluştur
+        CreateCoinIcon();
+    }
+    
+    /// <summary>
+    /// Dönen coin simgesi oluştur
+    /// </summary>
+    private void CreateCoinIcon()
+    {
+        // Coin objesi oluştur (Cylinder kullanacağız - yassı coin şeklinde)
+        coinIcon = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        coinIcon.name = "CoinIcon";
+        coinIcon.transform.SetParent(transform);
+        
+        // Pozisyon (aracın üstünde)
+        coinIcon.transform.localPosition = new Vector3(0f, 2.5f, 0f);
+        coinIcon.transform.localScale = new Vector3(0.6f, 0.05f, 0.6f); // Yassı coin
+        coinStartY = coinIcon.transform.localPosition.y;
+        
+        // Collider'ı kaldır (tıklama aracın kendisine olsun)
+        Collider coinCollider = coinIcon.GetComponent<Collider>();
+        if (coinCollider != null)
+        {
+            Destroy(coinCollider);
+        }
+        
+        // URP için yeni materyal oluştur
+        Renderer coinRenderer = coinIcon.GetComponent<Renderer>();
+        if (coinRenderer != null)
+        {
+            // Yeni unlit materyal oluştur (shader'a bağımlı olmayan)
+            Material coinMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            
+            // Shader bulunamazsa fallback
+            if (coinMat.shader == null || coinMat.shader.name == "Hidden/InternalErrorShader")
+            {
+                coinMat = new Material(Shader.Find("Standard"));
+            }
+            
+            Color goldColor = new Color(1f, 0.84f, 0f); // Altın sarısı
+            
+            // Tüm olası renk property'lerini ayarla
+            coinMat.SetColor("_BaseColor", goldColor);
+            coinMat.SetColor("_Color", goldColor);
+            coinMat.color = goldColor;
+            
+            // Metalik ve parlak yap
+            if (coinMat.HasProperty("_Metallic"))
+                coinMat.SetFloat("_Metallic", 1f);
+            if (coinMat.HasProperty("_Smoothness"))
+                coinMat.SetFloat("_Smoothness", 0.8f);
+            
+            coinRenderer.material = coinMat;
+        }
+    }
+    
+    /// <summary>
+    /// Coin simgesini animasyonla (döndür + yukarı-aşağı)
+    /// </summary>
+    private void AnimateCoinIcon()
+    {
+        if (coinIcon == null) return;
+        
+        // Y ekseninde döndür (360 derece)
+        coinIcon.transform.Rotate(Vector3.up, coinRotationSpeed * Time.deltaTime, Space.World);
+        
+        // Yukarı-aşağı hareket (bob effect)
+        float newY = coinStartY + Mathf.Sin(Time.time * coinBobSpeed) * coinBobAmount;
+        Vector3 localPos = coinIcon.transform.localPosition;
+        localPos.y = newY;
+        coinIcon.transform.localPosition = localPos;
     }
     
     private void MoveToGarage()

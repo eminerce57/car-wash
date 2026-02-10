@@ -8,7 +8,7 @@ public class TurnTrigger : MonoBehaviour
 {
     [Header("Dönüş Ayarları")]
     [Range(0f, 1f)]
-    public float turnChance = 0.5f;  // %50 ihtimalle dönecek
+    public float turnChance = 0.2f;  // %20 ihtimalle dönecek (reklam ile artar)
     public Vector3 newDirection = Vector3.forward;  // Yeni hareket yönü (Z yönü = ileri)
     
     [Header("Garaj Noktası")]

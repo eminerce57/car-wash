@@ -22,6 +22,9 @@ public class UpgradePanel : MonoBehaviour
     public TextMeshProUGUI upgradeCostText; // "$180"
     public TextMeshProUGUI upgradeInfoText; // "Hız +0.3s, Kazanç +$15"
     
+    [Header("Reklam Butonu")]
+    public Button advertisingButton;  // Sadece buton yeterli
+    
     [Header("Kapat Butonu")]
     public Button closeButton;
     
@@ -32,6 +35,7 @@ public class UpgradePanel : MonoBehaviour
     public Color canAffordColor = Color.green;
     public Color cantAffordColor = Color.gray;
     public Color maxLevelColor = Color.yellow;
+    public Color purchasedColor = Color.cyan;  // Satın alınmış
 
     private void Start()
     {
@@ -45,6 +49,17 @@ public class UpgradePanel : MonoBehaviour
         if (upgradeButton != null)
         {
             upgradeButton.onClick.AddListener(OnUpgradeClicked);
+            Debug.Log("Upgrade butonu bağlandı");
+        }
+        
+        if (advertisingButton != null)
+        {
+            advertisingButton.onClick.AddListener(OnAdvertisingClicked);
+            Debug.Log("Reklam butonu bağlandı");
+        }
+        else
+        {
+            Debug.LogWarning("Advertising Button referansı BOŞ! Inspector'dan bağla.");
         }
         
         if (closeButton != null)
@@ -164,6 +179,29 @@ public class UpgradePanel : MonoBehaviour
                 }
             }
         }
+        
+        // Reklam butonu
+        if (advertisingButton != null)
+        {
+            var adButtonImage = advertisingButton.GetComponent<Image>();
+            
+            if (targetStation.hasAdvertising)
+            {
+                // Zaten satın alınmış
+                advertisingButton.interactable = false;
+                if (adButtonImage != null)
+                    adButtonImage.color = purchasedColor;
+            }
+            else
+            {
+                // Satın alınabilir
+                bool canBuy = targetStation.CanBuyAdvertising();
+                advertisingButton.interactable = canBuy;
+                
+                if (adButtonImage != null)
+                    adButtonImage.color = canBuy ? canAffordColor : cantAffordColor;
+            }
+        }
     }
 
     /// <summary>
@@ -177,6 +215,29 @@ public class UpgradePanel : MonoBehaviour
             {
                 UpdateUI();
             }
+        }
+    }
+    
+    /// <summary>
+    /// Reklam butonuna basıldı
+    /// </summary>
+    private void OnAdvertisingClicked()
+    {
+        Debug.Log("Reklam butonuna tıklandı!");
+        
+        if (targetStation != null)
+        {
+            Debug.Log($"TargetStation var. HasAdvertising: {targetStation.hasAdvertising}, CanBuy: {targetStation.CanBuyAdvertising()}");
+            
+            if (targetStation.TryBuyAdvertising())
+            {
+                Debug.Log("Reklam satın alındı!");
+                UpdateUI();
+            }
+        }
+        else
+        {
+            Debug.Log("TargetStation NULL!");
         }
     }
 }

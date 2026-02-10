@@ -39,6 +39,14 @@ public class CarWashStation : MonoBehaviour
     public int totalCarsWashed = 0;
     public float totalEarnings = 0f;
     
+    [Header("Reklam Tabelası")]
+    public bool hasAdvertising = false;      // Reklam satın alındı mı?
+    public float advertisingCost = 1000f;    // Reklam fiyatı
+    public float advertisingTurnBonus = 0.3f;        // Dönüş şansı bonusu (+%30)
+    public GameObject advertisingSignPrefab;         // Tabela prefab'ı (yolun başına koyulacak)
+    public Transform advertisingSignPosition;        // Tabelanın konacağı yer
+    private GameObject spawnedSign;                  // Spawn edilen tabela
+    
     [Header("UI")]
     public WashProgressUI progressUI;
     public UpgradePanel upgradePanel;  // Upgrade paneli
@@ -123,6 +131,108 @@ public class CarWashStation : MonoBehaviour
     {
         return currentLevel >= maxLevel;
     }
+    
+    /// <summary>
+    /// Reklam satın al
+    /// </summary>
+    public bool TryBuyAdvertising()
+    {
+        if (hasAdvertising)
+        {
+            Debug.Log("Reklam zaten satın alınmış!");
+            return false;
+        }
+        
+        if (MoneyManager.Instance == null) return false;
+        
+        if (MoneyManager.Instance.SpendMoney(advertisingCost))
+        {
+            hasAdvertising = true;
+            
+            // TurnTrigger'ın dönüş şansını artır
+            TurnTrigger trigger = FindObjectOfType<TurnTrigger>();
+            if (trigger != null)
+            {
+                trigger.turnChance += advertisingTurnBonus;
+                trigger.turnChance = Mathf.Clamp01(trigger.turnChance); // Max %100
+            }
+            
+            // Fiziksel tabelayı spawn et
+            SpawnAdvertisingSign();
+            
+            // Ses çal
+            if (SoundManager.Instance != null) SoundManager.Instance.PlayUnlockSound();
+            
+            Debug.Log($"Reklam tabelası satın alındı! Dönüş şansı +%{advertisingTurnBonus * 100}");
+            return true;
+        }
+        
+        Debug.Log("Yetersiz bakiye!");
+        return false;
+    }
+    
+    /// <summary>
+    /// Reklam satın alınabilir mi?
+    /// </summary>
+    public bool CanBuyAdvertising()
+    {
+        if (hasAdvertising)
+        {
+            Debug.Log("CanBuyAdvertising: Zaten satın alınmış");
+            return false;
+        }
+        if (MoneyManager.Instance == null)
+        {
+            Debug.LogWarning("CanBuyAdvertising: MoneyManager.Instance NULL!");
+            return false;
+        }
+        
+        bool canAfford = MoneyManager.Instance.CanAfford(advertisingCost);
+        Debug.Log($"CanBuyAdvertising: Para={MoneyManager.Instance.currentMoney}, Fiyat={advertisingCost}, CanAfford={canAfford}");
+        return canAfford;
+    }
+    
+    /// <summary>
+    /// Gerçek kazancı hesapla
+    /// </summary>
+    public float GetActualMoneyPerWash()
+    {
+        return moneyPerWash; // Reklam kazancı etkilemiyor, sadece müşteri artışı
+    }
+    
+    /// <summary>
+    /// Fiziksel reklam tabelasını spawn et
+    /// </summary>
+    private void SpawnAdvertisingSign()
+    {
+        if (advertisingSignPrefab == null)
+        {
+            Debug.Log("Reklam tabelası prefab'ı atanmamış!");
+            return;
+        }
+        
+        // Pozisyon belirle
+        Vector3 spawnPos;
+        Quaternion spawnRot;
+        
+        if (advertisingSignPosition != null)
+        {
+            spawnPos = advertisingSignPosition.position;
+            spawnRot = advertisingSignPosition.rotation;
+        }
+        else
+        {
+            // Varsayılan: İstasyonun önünde
+            spawnPos = transform.position + transform.forward * 10f;
+            spawnRot = transform.rotation;
+        }
+        
+        // Tabelayı spawn et
+        spawnedSign = Instantiate(advertisingSignPrefab, spawnPos, spawnRot);
+        spawnedSign.name = "AdvertisingSign";
+        
+        Debug.Log("Reklam tabelası yerleştirildi!");
+    }
 
     private void OnTriggerEnter(Collider other)
     {
@@ -198,16 +308,17 @@ public class CarWashStation : MonoBehaviour
             // Progress UI gizle
             if (progressUI != null) progressUI.Hide();
             totalCarsWashed++;
-            totalEarnings += moneyPerWash;
+            float actualMoney = GetActualMoneyPerWash(); // Reklam bonusu dahil
+            totalEarnings += actualMoney;
             
             // Para ekle + ses çal
             if (MoneyManager.Instance != null)
             {
-                MoneyManager.Instance.AddMoney(moneyPerWash);
+                MoneyManager.Instance.AddMoney(actualMoney);
             }
             if (SoundManager.Instance != null) SoundManager.Instance.PlayCoinSound();
             
-            Debug.Log($"Yıkama tamamlandı! +${moneyPerWash}");
+            Debug.Log($"Yıkama tamamlandı! +${actualMoney:F0}" + (hasAdvertising ? " (Reklam bonusu!)" : ""));
             
             // Aracı yok et
             if (currentCar != null)
